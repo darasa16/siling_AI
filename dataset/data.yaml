@@ -1,0 +1,13 @@
+train: D:\We can do it\dataset\train\images
+val: D:\We can do it\dataset\valid\images
+test: D:\We can do it\dataset\test\images
+
+nc: 1
+names: ['Jentik-Nyamuk']
+
+roboflow:
+  workspace: jentik
+  project: pendeteksi-jentik-nyamuk-3i4rz-fvvex
+  version: 1
+  license: CC BY 4.0
+  url: https://app.roboflow.com/jentik/pendeteksi-jentik-nyamuk-3i4rz-fvvex/1
