@@ -34,7 +34,7 @@
             width: 100px; 
             height: 75px; 
             object-fit: cover; 
-            border-radius: 0.25rem; 
+            /* Sudut tajam */
             cursor: pointer; 
             border: 1px solid #ddd; 
             margin-top: 10px; 
@@ -46,6 +46,11 @@
         /* Gaya untuk gambar di modal agar responsif */
         .modal-image-container img {
             max-width: 100%; height: auto; display: block; margin: auto;
+        }
+        
+        /* Tambahkan style untuk warna header warning agar terlihat */
+        .modal-header.bg-warning {
+            color: #212529; /* Warna teks gelap */
         }
     </style>
 </head>
@@ -91,10 +96,7 @@
                 <div class="modal-body text-center modal-image-container">
                     <img src="" id="fullImageDisplay" class="img-fluid" alt="Hasil Deteksi Jentik">
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
                 </div>
-            </div>
         </div>
     </div>
     
@@ -156,13 +158,10 @@
                         <div class="text-warning icon-lg">💡</div>
                         <h5 class="card-title text-muted">CAHAYA (LDR)</h5>
                         <p class="text-secondary mb-1">Intensitas:</p> 
-                        <h3 class="fw-bold text-dark">
-                            <span id="dataLDRLux">--</span> Lux
-                        </h3>
+                        <h3 id="dataLDRLux" class="fw-bold text-dark">-- Lux</h3> 
                         <p class="text-secondary mb-1">Status:</p>
                         <h5 id="dataLDRStatus" class="fw-bold text-dark">--</h5>
-                        <!-- <small class="text-muted">ADC: <span id="dataLDRADC">--</span></small> -->
-                    </div>
+                        </div>
                 </div>
             </div>
         </div>
@@ -238,6 +237,7 @@
 
         // === Fungsi Tambah Notifikasi ===
         function addNotification(message, type = 'danger') {
+            // HANYA TERIMA danger atau warning, mengabaikan kondisi "aman"
             if (type !== 'danger' && type !== 'warning') return null;
 
             const timestamp = new Date().toLocaleString();
@@ -307,7 +307,7 @@
         function checkHealthAlert(data) {
             let currentAlert = false;
             let alertMessage = "";
-            let alertType = "";
+            let alertType = ""; // 'danger' atau 'warning'
 
             // Menggunakan parseFloat agar 'Error' tidak menimbulkan masalah fatal, akan menjadi NaN (kemudian 0 di sini)
             const temp_val = parseFloat(data.temp) || 0;
@@ -353,22 +353,33 @@
             
             if (currentAlert) {
                 const lastNotif = notifications[0];
+                // Cek apakah notifikasi sama dan baru dibuat dalam 5 detik terakhir (untuk mencegah spam)
                 if (lastNotif && lastNotif.message === alertMessage && (Date.now() - lastNotif.id) < 5000) {
                     return; 
                 }
 
                 const newNotif = addNotification(alertMessage, alertType);
 
-                if (alertType === 'danger' && newNotif) {
+                // --- LOGIKA MODAL POP-UP (danger ATAU warning) ---
+                if ((alertType === 'danger' || alertType === 'warning') && newNotif) { 
                     const modalBody = document.getElementById('modalAlertMessage');
                     const initialAlertModal = document.getElementById('initialAlertModal');
                     const modalHeader = document.querySelector('#initialAlertModal .modal-header'); 
+                    const closeBtn = document.getElementById('closeModalHeaderButton');
                     
                     if (modalBody && initialAlertModal && modalHeader) {
                         modalBody.innerHTML = `${alertMessage} <br><small class="text-muted mt-2 d-block">Waktu: ${newNotif.timestamp}</small>`;
                         
-                        modalHeader.classList.remove('bg-warning', 'bg-info');
-                        modalHeader.classList.add('bg-danger');
+                        // Sesuaikan warna header modal berdasarkan tipe alert
+                        modalHeader.classList.remove('bg-danger', 'bg-warning', 'bg-info', 'text-white');
+                        
+                        if (alertType === 'danger') {
+                            modalHeader.classList.add('bg-danger', 'text-white');
+                            if (closeBtn) closeBtn.classList.add('btn-close-white'); 
+                        } else { // alertType === 'warning'
+                            modalHeader.classList.add('bg-warning');
+                            if (closeBtn) closeBtn.classList.remove('btn-close-white'); // Agar tombol close terlihat di header kuning
+                        }
 
                         const modalInstance = new bootstrap.Modal(initialAlertModal);
                         modalInstance.show();
@@ -384,14 +395,13 @@
                         initialAlertModal.addEventListener('hidden.bs.modal', handleModalClose);
                     }
                 }
+                // --- AKHIR LOGIKA MODAL POP-UP ---
             }
         }
 
         
         // ====================================================================
-        // === FUNGSI BARU: KONVERSI ADC LDR KE LUX ===
-        // Asumsi: Rangkaian voltage divider, R1=10k, Vref=3.3V, ADCmax=4095 (12-bit)
-        // Jika Anda menggunakan R1, Vref, atau ADC bit lain, harap sesuaikan konstan di bawah.
+        // === FUNGSI KONVERSI ADC LDR KE LUX (MODIFIKASI: Menggunakan float) ===
         // ====================================================================
         function convertLDR_ADC_to_Lux(adcValue, R1 = 10000, Vref = 3.3, ADCmax = 4095) {
             // Konstan kalibrasi umum untuk LDR
@@ -413,7 +423,8 @@
             try {
                 // Lux = SCALAR * (RLDR^EXPONENT)
                 luxValue = LUX_CALC_SCALAR * Math.pow(RLDR, LUX_CALC_EXPONENT);
-                return Math.round(luxValue); // Bulatkan ke integer terdekat
+                // MODIFIKASI: Menggunakan parseFloat(toFixed(2)) untuk memastikan desimal 2 angka
+                return parseFloat(luxValue.toFixed(2));
             } catch (e) {
                 return 0; // Kembalikan 0 jika ada error perhitungan (misalnya RLDR terlalu besar/kecil)
             }
@@ -446,13 +457,11 @@
                 } 
                 
                 // 2. Hitung & Tampilkan LUX
-                let luxDisplayValue = '--'; // Diubah dari '-- Lux'
+                let luxDisplayValue = '-- Lux';
+                // Nilai yang dikembalikan dari convertLDR_ADC_to_Lux sekarang adalah float
                 if (ldrAdcValue !== null) {
-                    // Fungsi ini (yang sudah dimodifikasi untuk 2 desimal) mengembalikan string cth: "323.56"
-                    const calculatedLux = convertLDR_ADC_to_Lux(ldrAdcValue); 
-                    
-                    // --- PERUBAHAN DI SINI: Hilangkan string " Lux" ---
-                    luxDisplayValue = calculatedLux; 
+                    const calculatedLux = convertLDR_ADC_to_Lux(ldrAdcValue);
+                    luxDisplayValue = `${calculatedLux} Lux`;
                 }
                 if (dataLDRLuxElement) {
                     dataLDRLuxElement.textContent = luxDisplayValue;
@@ -521,7 +530,7 @@
         }
 
 
-        // === FUNGSI TRIGGER AI MANUAL (Tidak ada perubahan logika) ===
+        // === FUNGSI TRIGGER AI MANUAL (Tidak ada perubahan logika, hanya memastikan pop-up sesuai) ===
         async function triggerAI() {
             const button = document.getElementById('triggerAIButton');
             const messageBox = document.getElementById('aiMessage');
@@ -572,11 +581,20 @@
                     const notifMessage = `🚨 Jentik terdeteksi: ${detectionResultStatus}`;
                     const newNotif = addNotification(notifMessage, 'danger');
                     
+                    // Panggil ulang logika pop-up yang sudah dimodifikasi
                     if (newNotif) {
                         const modalBody = document.getElementById('modalAlertMessage');
                         const initialAlertModal = document.getElementById('initialAlertModal');
-                        if (modalBody && initialAlertModal) {
+                        const modalHeader = document.querySelector('#initialAlertModal .modal-header'); 
+                        const closeBtn = document.getElementById('closeModalHeaderButton');
+                        
+                        if (modalBody && initialAlertModal && modalHeader) {
                             modalBody.innerHTML = `${notifMessage} <br><small class="text-muted mt-2 d-block">Waktu: ${newNotif.timestamp}</small>`;
+                            
+                            modalHeader.classList.remove('bg-danger', 'bg-warning', 'bg-info', 'text-white');
+                            modalHeader.classList.add('bg-danger', 'text-white');
+                            if (closeBtn) closeBtn.classList.add('btn-close-white'); 
+                            
                             const modalInstance = new bootstrap.Modal(initialAlertModal);
                             modalInstance.show();
                         }
@@ -587,6 +605,8 @@
                 } else {
                     jentikLastStatus = 'Deteksi Selesai, Status Tidak Jelas';
                     jentikLastType = 'warning';
+                    // Jika status tidak jelas, tambahkan notif warning, ini akan memicu pop-up warning
+                    addNotification(`⚠ Deteksi Jentik Selesai, Status Tidak Jelas: ${detectionResultStatus}`, 'warning');
                 }
 
                 statusCardElement.textContent = jentikLastStatus;
@@ -619,6 +639,7 @@
                 imageCardElement.classList.add('d-none');
                 imageCardElement.src = "";
                 jentikLastImagePath = null;
+                // Notifikasi danger akan memicu pop-up merah
                 addNotification(`🚨 Gagal terhubung/proses AI: ${error.message}`, 'danger');
 
             } finally {
