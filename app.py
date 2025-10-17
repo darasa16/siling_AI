@@ -496,7 +496,7 @@ def trigger_ai():
 # ====================================================
 
 # Ganti IP ini ke IP laptop lu (bukan localhost)
-DB_HOST = "10.249.123.79"  
+DB_HOST = "10.146.141.79"  
 DB_NAME = "iotdb"
 DB_USER = "iotuser"
 DB_PASS = "iotpass123"
