@@ -16,7 +16,9 @@ import uuid
 import torch
 from ultralytics import YOLO 
 import psycopg2
-from datetime import datetime 
+from datetime import datetime
+from dotenv import load_dotenv
+import os
 
 # optional: OpenCV check (agar error import terlihat saat startup, bukan saat request)
 try:
@@ -29,10 +31,18 @@ except Exception:
 os.makedirs("static/results/detections", exist_ok=True)
 
 # --- Setup GPIO ---
+# --- Setup GPIO ---
 try:
+    # Coba atur mode pin ke BCM
     GPIO.setmode(GPIO.BCM)
-except ValueError:
-    pass
+    print("✅ Mode GPIO ditetapkan ke BCM.")
+except RuntimeError as e:
+    # Jika mode sudah diatur (RuntimeError), abaikan dan lanjutkan
+    if "already been set" in str(e):
+        print("⚠ Mode GPIO sudah diatur sebelumnya. Melanjutkan.")
+    else:
+        # Jika ada RuntimeError lain, tampilkan
+        raise e
 
 # --- Digital Pin Sensor Gas ---
 MQ2_DO = 5
@@ -92,6 +102,25 @@ except Exception as e:
 
 # --- Variabel Global untuk Metrik & Kalibrasi ---
 app = Flask(__name__)
+load_dotenv()
+API_KEY = os.getenv("API_KEY")
+
+# ====================================================
+# === AUTENTIKASI API KEY (Keamanan Backend) ===
+# ====================================================
+from functools import wraps
+
+
+
+def require_api_key(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        key = request.headers.get("X-API-KEY")
+        if key != API_KEY:
+            return jsonify({"error": "Unauthorized access"}), 401
+        return func(*args, **kwargs)
+    return wrapper
+
 R0_MQ2 = 25.0
 R0_MQ135 = 25.0
 request_count = 0
@@ -347,6 +376,7 @@ def index():
 
 
 @app.route("/data")
+@require_api_key
 def get_data_json():
     """Endpoint untuk AJAX, mengembalikan data sensor mentah dalam JSON."""
     data = get_all_sensor_readings()
@@ -361,6 +391,7 @@ def get_data_json():
 
 
 @app.route("/trigger_ai", methods=["POST"])
+@require_api_key
 def trigger_ai():
     """Endpoint untuk mengambil gambar via rpicam, memperbaiki image, jalankan YOLO,
         simpan hasil, dan kembalikan JSON. Penanganan error dipisah supaya log jelas.

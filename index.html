@@ -489,7 +489,9 @@
         // === Fungsi Utama: Ambil Data dari Flask ===
         async function updateSensorData() {
             try {
-                const response = await fetch(API_LATEST);
+                const response = await fetch(API_LATEST, {
+    headers: { "X-API-KEY": "PBLKEL4" }  // 🔐 tambahin ini
+});
                 if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
                 const data = await response.json();
                 
@@ -839,9 +841,13 @@
 
             try {
                 const response = await fetch(API_TRIGGER, {
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' }
-                });
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+        'X-API-KEY': 'PBLKEL4' // 🔐 API Key kamu
+    }
+});
+
                 
                 if (!response.ok) {
                     throw new Error(`Gagal mengirim perintah: HTTP ${response.status}. Pastikan CORS diaktifkan.`);
