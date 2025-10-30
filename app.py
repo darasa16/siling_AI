@@ -31,17 +31,13 @@ except Exception:
 os.makedirs("static/results/detections", exist_ok=True)
 
 # --- Setup GPIO ---
-# --- Setup GPIO ---
 try:
-    # Coba atur mode pin ke BCM
     GPIO.setmode(GPIO.BCM)
     print("✅ Mode GPIO ditetapkan ke BCM.")
 except RuntimeError as e:
-    # Jika mode sudah diatur (RuntimeError), abaikan dan lanjutkan
     if "already been set" in str(e):
         print("⚠ Mode GPIO sudah diatur sebelumnya. Melanjutkan.")
     else:
-        # Jika ada RuntimeError lain, tampilkan
         raise e
 
 # --- Digital Pin Sensor Gas ---
@@ -52,7 +48,6 @@ GPIO.setup(MQ135_DO, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 # --- DHT22 ---
 DHT_PIN = board.D17
-# Pastikan tidak ada duplikasi inisialisasi dhtDevice
 dhtDevice = adafruit_dht.DHT22(DHT_PIN, use_pulseio=False)
 
 # --- Setup MCP3008 ---
@@ -91,17 +86,17 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 MODEL_PATH = "runs/train/deteksi_jentik_part7/weights/best.pt"
 
 print("Memuat model YOLOv8...")
-# Menggunakan device GPU (0) jika tersedia, jika tidak menggunakan CPU
 device = 0 if torch.cuda.is_available() else "cpu"
 try:
     model = YOLO(MODEL_PATH)
     print(f"Model berhasil dimuat di device: {device}")
 except Exception as e:
     print(f"Gagal memuat model AI: {e}. Fungsionalitas AI mungkin tidak tersedia.")
-    model = None # Set model to None if loading fails
+    model = None 
 
 # --- Variabel Global untuk Metrik & Kalibrasi ---
 app = Flask(__name__)
+# ⬇️ MEMBACA FILE .env ⬇️
 load_dotenv()
 API_KEY = os.getenv("API_KEY")
 
@@ -109,8 +104,6 @@ API_KEY = os.getenv("API_KEY")
 # === AUTENTIKASI API KEY (Keamanan Backend) ===
 # ====================================================
 from functools import wraps
-
-
 
 def require_api_key(func):
     @wraps(func)
@@ -173,8 +166,6 @@ def resistance_to_ppm_mq135(Rs, R0):
 
 def adc_to_lux(adc_val):
     """Konversi LDR (dengan pembalikan logika)."""
-    # Nilai LDR terbalik: ADC rendah = Terang (Resistansi rendah)
-    # Ini adalah rumus estimasi sederhana untuk Lux (skala 0-1000)
     if adc_val < 0:
         return 0.0
     inverted_adc = 1023.0 - adc_val
@@ -215,7 +206,6 @@ def network_analysis():
     ip_local = socket.gethostbyname(hostname)
 
     try:
-        # Mengambil IP publik dengan timeout rendah
         ip_public = requests.get("https://api.ipify.org", timeout=1).text
     except:
         ip_public = "Tidak bisa ambil"
@@ -227,7 +217,6 @@ def network_analysis():
 
     now = time.time()
     elapsed = now - last_time
-    # Hitung kecepatan transfer dalam KB/s
     if elapsed > 0.01:
         tx_speed = (bytes_sent - last_bytes_sent) / elapsed / 1024
         rx_speed = (bytes_recv - last_bytes_recv) / elapsed / 1024
@@ -237,18 +226,15 @@ def network_analysis():
     last_bytes_sent, last_bytes_recv, last_time = bytes_sent, bytes_recv, now
 
     try:
-        # Ping ke Google DNS (8.8.8.8) untuk mengukur latency
         ping = subprocess.check_output(
             ["ping", "-c", "1", "-W", "1", "8.8.8.8"],
             universal_newlines=True
         )
         latency_line = [line for line in ping.split('\n') if 'avg' in line]
         if latency_line:
-            # Ambil nilai rata-rata (ke-4 dari 5 nilai yang dipisahkan '/')
             latency = latency_line[0].split('/')[4] + " ms"
         else:
             latency = "Timeout"
-
     except:
         latency = "Timeout"
 
@@ -272,7 +258,7 @@ def get_all_sensor_readings():
         temperature_c = dhtDevice.temperature
         humidity = dhtDevice.humidity
     except RuntimeError:
-        pass # Gagal baca/checksum error
+        pass 
     except Exception:
         pass
 
@@ -290,7 +276,6 @@ def get_all_sensor_readings():
 
     # --- LDR (Cahaya) ---
     ldr_adc = read_adc(CH_LDR)
-    # Threshold 300 adalah asumsi untuk membedakan terang/gelap
     ldr_status = "🌞 Terang" if ldr_adc < 300 else "🌑 Gelap"
     ldr_lux = adc_to_lux(ldr_adc)
 
@@ -312,9 +297,7 @@ def get_all_sensor_readings():
         "mq135_ppm": f"{mq135_ppm}" if mq135_ppm is not None else "Error",
         "ldr_status": ldr_status,
         "ldr_lux": f"{ldr_lux:.2f}",
-        # === PERBAIKAN: Menambahkan ldr_adc ke dictionary hasil ===
-        "ldr_adc": f"{ldr_adc}", 
-        # =========================================================
+        "ldr_adc": f"{ldr_adc}", # Ini sudah benar, dipertahankan
         "ph_val": f"{ph_val:.2f}",
         
         # Data MENTAH untuk penyimpanan DB (nilai float/None)
@@ -324,9 +307,9 @@ def get_all_sensor_readings():
         "ldr_lux_raw": ldr_lux,
         "mq2_ppm_raw": mq2_ppm,
         "mq135_ppm_raw": mq135_ppm,
-        # Tidak perlu ldr_adc_raw karena ldr_lux_raw (lux) lebih informatif untuk DB
-        # kecuali Anda ingin menyimpan nilai mentah ADC juga.
-
+        # ⬇️ PERBAIKAN: Menambahkan ldr_adc_raw untuk DB ⬇️
+        "ldr_adc_raw": ldr_adc, 
+        
         "net": net_info
     }
 
@@ -357,15 +340,11 @@ def index():
     print(f"DHT22: {data['temp']}, {data['hum']}")
     print(f"MQ2: {data['mq2_status']} | {data['mq2_ppm']}")
     print(f"MQ135: {data['mq135_status']} | {data['mq135_ppm']}")
-    # === LOG LDR DIPERBARUI ===
     print(f"LDR: {data['ldr_status']} | ADC: {data['ldr_adc']} | Lux: {data['ldr_lux']}")
-    # ==========================
     print(f"pH: {data['ph_val']}")
     print(f"IP Lokal: {net_info['ip_local']}, Latency: {net_info['latency']}")
     print("=" * 40)
 
-    # Kirim data string (yang diformat) ke halaman web
-    # Kita hanya mengirim key yang tidak berakhiran '_raw'
     data_for_template = {k: v for k, v in data.items() if not k.endswith('_raw')}
     
     return render_template(
@@ -384,7 +363,7 @@ def get_data_json():
     # Simpan data LENGKAP ke database
     save_sensor_data(data)
     
-    # Hapus data mentah (_raw) sebelum dikirim ke frontend, agar konsisten
+    # Hapus data mentah (_raw) sebelum dikirim ke frontend
     data_for_json = {k: v for k, v in data.items() if not k.endswith('_raw')}
     
     return jsonify(data_for_json)
@@ -393,8 +372,8 @@ def get_data_json():
 @app.route("/trigger_ai", methods=["POST"])
 @require_api_key
 def trigger_ai():
-    """Endpoint untuk mengambil gambar via rpicam, memperbaiki image, jalankan YOLO,
-        simpan hasil, dan kembalikan JSON. Penanganan error dipisah supaya log jelas.
+    """Endpoint untuk mengambil gambar, jalankan YOLO,
+        simpan hasil ke DB Supabase, dan kembalikan JSON.
     """
     if model is None:
         return jsonify({"error": "Model AI tidak tersedia di server."}), 500
@@ -403,59 +382,50 @@ def trigger_ai():
     filename = f"{uuid.uuid4().hex}.jpg"
     filepath = os.path.join(UPLOAD_FOLDER, filename)
 
-    # 2) Ambil gambar (subprocess) — terpisah dari image processing
+    # 2) Ambil gambar (subprocess)
     try:
-        # cek apakah rpicam-jpeg tersedia di PATH
         from shutil import which
         if which("rpicam-jpeg") is None and which("rpicam-still") is None:
             return jsonify({"error": "Perintah rpicam tidak ditemukan (install rpicam-apps)."}), 500
 
-        # preferensi: gunakan rpicam-jpeg kalau ada
         cmd = [
             "rpicam-jpeg", "-o", filepath, "-t", "2000",
             "--width", "1280", "--height", "720",
             "--sharpness", "15",
-            "--awb", "auto" # ✅ pengganti --autowhitebalance
+            "--awb", "auto"
         ]
         if which("rpicam-jpeg") is None:
-            # fallback ke rpicam-still (opsional)
             cmd = [
                 "rpicam-still", "-o", filepath, "-t", "2000",
                 "--width", "1280", "--height", "720"
             ]
-
         proc = subprocess.run(cmd, timeout=8, capture_output=True, text=True)
         if proc.returncode != 0:
             raise RuntimeError(f"rpicam gagal: {proc.stderr.strip()}")
-
     except subprocess.TimeoutExpired:
         return jsonify({"error": "Timeout saat mengambil gambar dari kamera."}), 500
     except Exception as e:
         print(f"[CAMERA ERROR] {e}")
         return jsonify({"error": f"Gagal ambil gambar: {e}"}), 500
 
-    # Pastikan file ada dan bisa dibaca
     if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
         print("[CAMERA] File gambar tidak dibuat atau kosong.")
         return jsonify({"error": "Gambar kamera tidak tersedia."}), 500
 
 
-    # 3) Pre-process gambar (sharpen/contrast) — lakukan di blok terpisah
+    # 3) Pre-process gambar (sharpen/contrast)
     try:
         if HAVE_OPENCV:
             img = cv2.imread(filepath)
             if img is None:
                 raise RuntimeError("cv2 gagal membaca file gambar.")
-            # sharpening
             blur = cv2.GaussianBlur(img, (0, 0), 3)
             img_sharp = cv2.addWeighted(img, 1.5, blur, -0.5, 0)
-            # contrast & brightness
-            alpha, beta = 1.2, 10 # alpha:kontras, beta:brightness
+            alpha, beta = 1.2, 10
             img_enh = cv2.convertScaleAbs(img_sharp, alpha=alpha, beta=beta)
             cv2.imwrite(filepath, img_enh)
             print("[IMAGE] preprocessing (opencv) sukses.")
         else:
-            # fallback ke Pillow jika OpenCV tidak ada
             from PIL import Image, ImageEnhance
             img = Image.open(filepath)
             img = ImageEnhance.Contrast(img).enhance(1.5)
@@ -464,93 +434,108 @@ def trigger_ai():
             img.save(filepath)
             print("[IMAGE] preprocessing (Pillow) sukses.")
     except Exception as e:
-        # jangan langsung gagal total — catat dan lanjutkan ke deteksi
         print(f"[IMAGE WARN] preprocessing gagal: {e}")
 
-    # 4) Jalankan deteksi YOLO — pisahkan exceptions
+    # 4) Jalankan deteksi YOLO
     try:
         results = model.predict(
-            source=filepath,
-            save=True,
-            project="static/results",
-            name="detections",
-            exist_ok=True,
-            device=device,
-            conf=0.20,
-            iou=0.45,
-            verbose=False
+            source=filepath, save=True, project="static/results",
+            name="detections", exist_ok=True, device=device,
+            conf=0.20, iou=0.45, verbose=False
         )
     except Exception as e:
         print(f"[AI ERROR] Gagal inferensi YOLO: {e}")
         return jsonify({"error": f"Gagal menjalankan model AI: {e}"}), 500
 
-    # 5) Baca hasil inference dan log ke terminal
+    # 5) Baca hasil inference
+    num = 0
     try:
-        num = 0
         if len(results) > 0 and hasattr(results[0], "boxes"):
             num = len(results[0].boxes) if results[0].boxes is not None else 0
-
         print("[AI] Jumlah deteksi:", num)
-        if num > 0:
-            for box in results[0].boxes:
-                cls_id = int(box.cls[0])
-                conf = float(box.conf[0])
-                name = model.names.get(cls_id, str(cls_id))
-                print(f"  - {name} | {conf:.2f}")
     except Exception as e:
         print(f"[AI WARN] Gagal baca box hasil: {e}")
 
-    # 6) Simpan hasil AI ke DB (jika tabel/DB tidak tersedia, jangan crash)
-    try:
-        save_ai_data("jentik", num)
-    except Exception as e:
-        print(f"[DB WARN] Gagal simpan hasil AI: {e}")
-
-    # 7) Path hasil image (YOLO menaruh file di static/results/..)
+    # 6) Path hasil image
     result_image_path = os.path.join("static", "results", "detections", os.path.basename(filepath))
-    # kalau file hasil tidak ada, fallback ke original file
     if not os.path.exists(result_image_path):
         result_image_path = filepath
+    
+    status_text = "Jentik Terdeteksi" if num > 0 else "Tidak Terdeteksi"
+    status_response = "✅ Ada jentik terdeteksi." if num > 0 else "❌ Tidak ada jentik terdeteksi."
 
-    # 8) Kembalikan hasil
-    status = "✅ Ada jentik terdeteksi." if num > 0 else "❌ Tidak ada jentik terdeteksi."
+    # ==========================================================
+    # === ⬇️ PERBAIKAN: Simpan hasil AI ke iotuser.ai_runs ⬇️ ===
+    # ==========================================================
+    conn = get_db_connection()
+    if conn:
+        try:
+            cur = conn.cursor()
+            image_path_for_db = f"/{result_image_path}"
+            
+            cur.execute("""
+                INSERT INTO iotuser.ai_runs 
+                (device_id, "timestamp", total_detections, status, result_image)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (
+                "RPI-PBL-01", 
+                datetime.now(), 
+                num, 
+                status_text, 
+                image_path_for_db
+            ))
+            conn.commit()
+            cur.close()
+            conn.close()
+            print(f"✅ Data AI (Status: {status_text}, Num: {num}) berhasil disimpan ke Supabase.")
+        except Exception as e:
+            print(f"❌ Error simpan hasil AI ke Supabase: {e}")
+            if conn:
+                conn.rollback()
+    else:
+        print("⚠ Tidak bisa konek ke Supabase, hasil AI tidak disimpan.")
+    # ==========================================================
+    # === ⬆️ AKHIR PERBAIKAN ⬆️ ===
+    # ==========================================================
+    
+    # 8) Kembalikan hasil ke frontend
     return jsonify({
-        "status": status,
+        "status": status_response,
         "num_detections": num,
-        "result_image": f"/{result_image_path}"
+        "result_image": f"/{result_image_path}" # Path ini yang akan dibaca frontend
     })
 
 
-
 # ====================================================
-# === BAGIAN TAMBAHAN: KONEKSI DAN SIMPAN DATA KE DATABASE ===
+# === BAGIAN TAMBAHAN: KONEKSI SUPABASE ===
 # ====================================================
 
-# Ganti IP ini ke IP laptop lu (bukan localhost)
-DB_HOST = "10.146.141.79"  
-DB_NAME = "iotdb"
-DB_USER = "iotuser"
-DB_PASS = "iotpass123"
+# ⬇️ PERBAIKAN: Ambil variabel env untuk koneksi ⬇️
+DB_HOST = os.getenv("DB_HOST")
+DB_NAME = os.getenv("DB_NAME")
+DB_USER = os.getenv("DB_USER")
+DB_PASS = os.getenv("DB_PASS")
+DB_PORT = os.getenv("DB_PORT", "5432") # Default 5432 jika tidak ada
 
 def get_db_connection():
+    """Mendapatkan koneksi ke database Supabase PostgreSQL."""
     try:
         conn = psycopg2.connect(
             host=DB_HOST,
+            port=DB_PORT,
             database=DB_NAME,
             user=DB_USER,
             password=DB_PASS
         )
         return conn
-    except Exception:
-        # Menghapus 'print' di sini agar tidak terlalu banyak log DB error
+    except Exception as e:
+        print(f"❌ Gagal konek ke Supabase DB: {e}")
         return None
 
 def get_data_value(data, key):
     """
     Fungsi utilitas untuk mengambil nilai float dari data mentah/raw.
     Mengembalikan float atau None jika data tidak valid (NULL, Error, atau format salah).
-    
-    Digunakan untuk key yang berakhiran '_raw' dari get_all_sensor_readings.
     """
     raw_key = key + "_raw"
     val = data.get(raw_key)
@@ -559,102 +544,67 @@ def get_data_value(data, key):
         return None 
     
     try:
-        # Coba konversi ke float (misalnya dari nilai DHT atau kalkulasi PPM)
+        if isinstance(val, str) and val.lower() == 'error':
+            return None
         return float(val)
     except (TypeError, ValueError):
         return None 
 
 def save_sensor_data(data):
     """
-    Simpan data sensor ke PostgreSQL.
+    Simpan data sensor ke tabel iotuser.sensor_readings di Supabase.
     """
     conn = get_db_connection()
     if not conn:
-        print("⚠ Tidak bisa konek ke database, data tidak disimpan.")
+        print("⚠ Tidak bisa konek ke Supabase, data sensor tidak disimpan.")
         return
 
-    # --- Persiapan data untuk dimasukkan ke DB ---
     try:
-        # Data Numerik (PPM, Suhu, dll.)
-        suhu = get_data_value(data, 'temp')
-        kelembaban = get_data_value(data, 'hum')
-        ph = get_data_value(data, 'ph_val')
-        cahaya = get_data_value(data, 'ldr_lux') # Data yang disimpan adalah Lux, bukan ADC mentah
-        gas_mq2 = get_data_value(data, 'mq2_ppm')
-        gas_mq135 = get_data_value(data, 'mq135_ppm')
+        # ⬇️ PERBAIKAN: Ambil data _raw untuk skema iotuser.sensor_readings ⬇️
+        temp_c = get_data_value(data, 'temp')
+        humidity = get_data_value(data, 'hum')
+        mq2_ppm = get_data_value(data, 'mq2_ppm')
+        mq135_ppm = get_data_value(data, 'mq135_ppm')
+        ph_val = get_data_value(data, 'ph_val')
+        ldr_adc = get_data_value(data, 'ldr_adc') # Menggunakan ldr_adc_raw yang baru
         
-        # Data String (Status)
-        status_mq2 = data.get('mq2_status')
-        status_mq135 = data.get('mq135_status')
-        
-        # Data Waktu
-        waktu = datetime.now()
-        
-        # Kolom 'gas' (diisi dengan MQ135 untuk backward compatibility/umum)
-        gas = gas_mq135 
-
         cur = conn.cursor()
         
-        # SQL INSERT query HARUS cocok dengan 10 kolom Anda
+        # ⬇️ PERBAIKAN: SQL INSERT untuk tabel iotuser.sensor_readings ⬇️
         insert_query = """
-        INSERT INTO sensor_data 
-        (suhu, kelembaban, ph, cahaya, gas_mq2, gas_mq135, 
-        status_mq2, status_mq135, waktu, gas)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO iotuser.sensor_readings 
+        (device_id, temp_c, humidity, mq2_ppm, mq135_ppm, ph_val, ldr_adc, "timestamp")
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """
         
         cur.execute(insert_query, (
-            suhu, 
-            kelembaban, 
-            ph, 
-            cahaya, 
-            gas_mq2, 
-            gas_mq135,
-            status_mq2,
-            status_mq135,
-            waktu,
-            gas
+            "RPI-PBL-01", # ID Perangkat Keras
+            temp_c, 
+            humidity, 
+            mq2_ppm, 
+            mq135_ppm,
+            ph_val,
+            ldr_adc,
+            datetime.now() # Timestamp saat ini
         ))
         
         conn.commit()
         cur.close()
-        # Log lebih detail, terutama untuk nilai MQ
-        print(f"✅ Data sensor berhasil disimpan.")
+        print(f"✅ Data sensor berhasil disimpan ke Supabase (iotuser.sensor_readings).")
         
     except psycopg2.Error as e:
         print(f"❌ Error simpan data sensor (DB): {e}")
-        print("Pastikan tipe data kolom di DB sudah benar (NUMERIC untuk nilai, TEXT/VARCHAR untuk status, TIMESTAMP untuk waktu).")
         if conn:
             conn.rollback()
-        
     except Exception as e:
         print(f"❌ Error simpan data sensor (Logika Python): {e}")
-        
     finally:
         if conn:
             conn.close()
 
-
-def save_ai_data(label, confidence):
-    """Simpan hasil deteksi AI ke PostgreSQL"""
-    conn = get_db_connection()
-    if not conn:
-        print("⚠ Tidak bisa konek ke database (AI).")
-        return
-
-    try:
-        cur = conn.cursor()
-        # Asumsi tabel detection_data memiliki kolom 'jumlah_deteksi'
-        cur.execute("""
-            INSERT INTO detection_data (label, jumlah_deteksi, timestamp)
-            VALUES (%s, %s, %s)
-        """, (label, confidence, datetime.now()))
-        conn.commit()
-        cur.close()
-        conn.close()
-        print("✅ Data hasil AI berhasil disimpan ke database.")
-    except Exception as e:
-        print(f"❌ Error simpan hasil AI: {e}")
+# ⬇️ FUNGSI INI (save_ai_data) TIDAK DIGUNAKAN LAGI, logikanya dipindah ke /trigger_ai
+# def save_ai_data(label, confidence):
+#    ...
 
 # ====================================================
 # === BAGIAN 5: MAIN EXECUTION ===
@@ -667,7 +617,7 @@ if __name__ == "__main__":
         print("\n" + "="*50)
         print("Aplikasi Terpadu (Sensor + AI) berjalan di:")
         print("Web UI: http://0.0.0.0:5000/")
-        print("Data JSON: http://0.0.0.0:5000/data")
+        print("Data JSON: http://0.0.0.0:5000/data (HANYA UNTUK MENYIMPAN DATA)")
         print("Trigger AI (POST): http://0.0.0.0:5000/trigger_ai")
         print("="*50)
         # Menjalankan Flask di port 5000

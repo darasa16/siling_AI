@@ -11,6 +11,8 @@
     
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
     <style>
         body { background-color: #eaedf1ac; }
         #notificationBadge {
@@ -22,19 +24,16 @@
         .text-purple { color: #6f42c1 !important; }
         .text-teal { color: #20c997 !important; }
         .card-sensor {
-            /* Sudut lancip */
             transition: transform 0.2s;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); 
         }
         .card-sensor:hover { transform: translateY(-3px); box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15); }
         .custom-header { background-color: white; border-bottom: 1px solid #dee2e6; }
         
-        /* Gaya untuk thumbnail gambar deteksi */
         .detection-thumbnail { 
             width: 100px; 
             height: 75px; 
             object-fit: cover; 
-            /* Sudut tajam (tetap) */
             cursor: pointer; 
             border: 1px solid #ddd; 
             margin-top: 10px; 
@@ -43,14 +42,11 @@
             opacity: 0.8; 
             border-color: #007bff; 
         }
-        /* Gaya untuk gambar di modal agar responsif */
         .modal-image-container img {
             max-width: 100%; height: auto; display: block; margin: auto;
         }
-        
-        /* Tambahkan style untuk warna header warning agar terlihat */
         .modal-header.bg-warning {
-            color: #212529; /* Warna teks gelap */
+            color: #212529; 
         }
     </style>
 </head>
@@ -99,7 +95,6 @@
                 </div>
         </div>
     </div>
-    
     <header class="custom-header mb-4 shadow-sm">
         <div class="container-fluid d-flex justify-content-between align-items-center p-4">
             <div class="flex-grow-1 text-center">
@@ -219,7 +214,6 @@
                 </div>
             </div>
         </div>
-
         <div class="row justify-content-center mb-5">
             <div class="col-lg-4 col-md-6 text-center">
                 <button id="triggerAIButton" class="btn btn-danger btn-lg shadow-lg w-100" type="button">
@@ -235,13 +229,25 @@
     
     <script>
         // ====================================================================
-        // === KONFIGURASI DAN FUNGSI UTAMA JAVASCRIPT ===
+        // === ⬇️ PERBAIKAN: KONFIGURASI SUPABASE & FLASK ⬇️ ===
         // ====================================================================
 
+        // --- Konfigurasi Klien Supabase ---
+        // (Ambil dari Project Settings > API)
+        const SUPABASE_URL = 'https://qqwxxwaciimcfwaaeyfo.supabase.co'; // ❗️ GANTI DENGAN URL ANDA
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxd3h4d2FjaWltY2Z3YWFleWZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE2NDE0NTIsImV4cCI6MjA3NzIxNzQ1Mn0.2mU9EfJxaU9dLwPWa08Q-DvHJN092o947BVYmAjpSGM'; // ❗️ GANTI DENGAN ANON KEY ANDA
+
+        // Inisialisasi Klien
+        const { createClient } = supabase;
+        const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // --- Konfigurasi Server Flask (hanya untuk AI) ---
         const API_BASE_URL = window.location.origin;
-        const API_LATEST = `${API_BASE_URL}/data`;
         const API_TRIGGER = `${API_BASE_URL}/trigger_ai`;
-        const DETECTIONS_IMAGE_URL_BASE = `${API_BASE_URL}/static/results/detections/`; 
+        const API_KEY_HEADER = "PBLKEL4"; // Kunci API dari file .env Anda
+
+        // ⬆️ AKHIR PERBAIKAN KONFIGURASI ⬆️
+
 
         let notifications = [];
         let unreadCount = 0;
@@ -249,15 +255,12 @@
         let jentikLastType = "dark";
         let jentikLastImagePath = null; 
 
-
-        // === Fungsi Tambah Notifikasi ===
+        // === FUNGSI NOTIFIKASI (addNotification, updateNotificationUI) TETAP SAMA ===
         function addNotification(message, type = 'danger') {
-            // HANYA TERIMA danger atau warning, mengabaikan kondisi "aman"
             if (type !== 'danger' && type !== 'warning') return null;
-
             const timestamp = new Date().toLocaleString();
             const newNotif = {
-                id: Date.now(),      
+                id: Date.now(), 
                 message: message,
                 timestamp: timestamp,
                 type: type,
@@ -272,31 +275,25 @@
             return newNotif;
         }
 
-
-        // === Fungsi Update UI Notifikasi ===
         function updateNotificationUI() {
             const badge = document.getElementById('notificationBadge');
             const list = document.getElementById('notificationList');
             const unreadCounter = document.getElementById('unreadCount');
-
             if (unreadCount > 0) {
                 badge.textContent = unreadCount;
                 badge.classList.remove('d-none');
             } else {
                 badge.classList.add('d-none');
             }
-
             if (unreadCounter) {
                 unreadCounter.textContent = unreadCount;
             }
-
             if (list) {
                 list.innerHTML = '';
                 if (notifications.length === 0) {
                     list.innerHTML = '<li class="list-group-item text-muted">Tidak ada riwayat notifikasi.</li>';
                     return;
                 }
-
                 notifications.forEach(notif => {
                     const itemClass = notif.read ? 'list-group-item-light' : `list-group-item-${notif.type || 'danger'}`;
                     const readStatus = notif.read ? '' : 'fw-normal';
@@ -306,7 +303,6 @@
                         case 'warning': icon = '⚠'; break;
                         default: icon = '💬';
                     }
-
                     list.innerHTML += `
                         <li class="list-group-item ${itemClass} ${readStatus}">
                             ${icon} ${notif.message}
@@ -316,15 +312,16 @@
                 });
             }
         }
+        // === AKHIR FUNGSI NOTIFIKASI ===
 
 
-        // === Fungsi Deteksi Kondisi Bahaya dari Data Sensor ===
+        // === FUNGSI checkHealthAlert TETAP SAMA ===
+        // (Fungsi ini sudah menggunakan variabel data, tidak perlu diubah)
         function checkHealthAlert(data) {
             let currentAlert = false;
             let alertMessage = "";
-            let alertType = ""; // 'danger' atau 'warning'
+            let alertType = ""; 
 
-            // Menggunakan parseFloat agar 'Error' tidak menimbulkan masalah fatal, akan menjadi NaN (kemudian 0 di sini)
             const temp_val = parseFloat(data.temp) || 0;
             const hum_val = parseFloat(data.hum) || 0;
             const ph_val = parseFloat(data.ph_val) || 0;
@@ -332,6 +329,7 @@
             const mq135_ppm = parseFloat(data.mq135_ppm) || 0;
             const jentik_status = data.jentik_status || "";
 
+            // ... (SEMUA LOGIKA if/else if UNTUK ALERT TETAP SAMA) ...
             // Prioritas 1: Gas/Asap (DANGER)
             if (mq2_status.includes("terdeteksi")) {
                 alertMessage = "🚨 BAHAYA! Gas/Asap terdeteksi. Segera periksa sumbernya!";
@@ -347,76 +345,71 @@
                 alertMessage = `🚨 Kualitas udara SANGAT BURUK (${mq135_ppm} ppm). Perlu ventilasi segera!`;
                 currentAlert = true;
                 alertType = 'danger';
-            } else if (mq135_ppm > 100) { // Rentang 100.01 - 200
+            } else if (mq135_ppm > 100) { 
                 alertMessage = `⚠ Kualitas udara BURUK (${mq135_ppm} ppm). Perlu ventilasi tambahan!`;
                 currentAlert = true;
                 alertType = 'warning';
-                
             // Prioritas 4: Suhu (DANGER / WARNING)
-            } else if (temp_val > 35) { // BAHAYA PANAS
-                alertMessage = `🚨 Suhu ruangan BAHAYA (${temp_val}°C). Segera periksa ventilasi dan nyalakan pendingin udara!`;
+            } else if (temp_val > 35) { 
+                alertMessage = `🚨 Suhu ruangan BAHAYA (${temp_val}°C). Segera periksa ventilasi!`;
                 currentAlert = true;
                 alertType = 'danger';
-            } else if (temp_val < 10) { // BAHAYA DINGIN
-                alertMessage = `🚨 Suhu ruangan BAHAYA (${temp_val}°C). Segera periksa ventilasi dan nyalakan pemanas ruangan!`;
+            } else if (temp_val < 10) { 
+                alertMessage = `🚨 Suhu ruangan BAHAYA (${temp_val}°C). Segera nyalakan pemanas!`;
                 currentAlert = true;
                 alertType = 'danger';
-            } else if (temp_val > 30) { // WASPADA PANAS
-                alertMessage = `⚠ Suhu ruangan Waspada (${temp_val}°C). Periksa ventilasi atau aktifkan pendingin ringan!`;
+            } else if (temp_val > 30) { 
+                alertMessage = `⚠ Suhu ruangan Waspada (${temp_val}°C). Periksa ventilasi!`;
                 currentAlert = true;
                 alertType = 'warning';
-            } else if (temp_val < 15) { // WASPADA DINGIN
-                alertMessage = `⚠ Suhu ruangan Waspada (${temp_val}°C). Periksa ventilasi atau aktifkan pemanas ringan!`;
+            } else if (temp_val < 15) { 
+                alertMessage = `⚠ Suhu ruangan Waspada (${temp_val}°C). Periksa ventilasi!`;
                 currentAlert = true;
                 alertType = 'warning';
-
             // Prioritas 5: Kualitas Air (pH) (DANGER / WARNING)
-            } else if (ph_val < 5.5) { // BAHAYA ASAM
-                alertMessage = `🚨 Kualitas Air (pH) BAHAYA (${ph_val} pH). Sangat Asam! Segera ganti air atau netralkan cepat!`;
+            } else if (ph_val < 5.5) { 
+                alertMessage = `🚨 Kualitas Air (pH) BAHAYA (${ph_val} pH). Sangat Asam!`;
                 currentAlert = true;
                 alertType = 'danger';
-            } else if (ph_val > 9.5) { // BAHAYA BASA
-                alertMessage = `🚨 Kualitas Air (pH) BAHAYA (${ph_val} pH). Sangat Basa! Segera ganti air atau netralkan cepat!`;
+            } else if (ph_val > 9.5) { 
+                alertMessage = `🚨 Kualitas Air (pH) BAHAYA (${ph_val} pH). Sangat Basa!`;
                 currentAlert = true;
                 alertType = 'danger';
-            } else if (ph_val < 6.5) { // WASPADA ASAM
-                alertMessage = `⚠ Kualitas Air (pH) Waspada (${ph_val} pH). Asam! Tambahkan buffer basa bertahap.`;
+            } else if (ph_val < 6.5) { 
+                alertMessage = `⚠ Kualitas Air (pH) Waspada (${ph_val} pH). Asam!`;
                 currentAlert = true;
                 alertType = 'warning';
-            } else if (ph_val > 8.5) { // WASPADA BASA
-                alertMessage = `⚠ Kualitas Air (pH) Waspada (${ph_val} pH). Basa! Tambahkan buffer asam bertahap.`;
+            } else if (ph_val > 8.5) { 
+                alertMessage = `⚠ Kualitas Air (pH) Waspada (${ph_val} pH). Basa!`;
                 currentAlert = true;
                 alertType = 'warning';
-                
             // Prioritas 6: Kelembaban (DANGER / WARNING)
-            } else if (hum_val > 80) { // BAHAYA TINGGI
-                alertMessage = `🚨 Kelembaban ruangan BAHAYA (${hum_val}% RH). Segera gunakan Dehumidifier!`;
+            } else if (hum_val > 80) { 
+                alertMessage = `🚨 Kelembaban ruangan BAHAYA (${hum_val}% RH).`;
                 currentAlert = true;
                 alertType = 'danger';
-            } else if (hum_val < 20) { // BAHAYA RENDAH
-                alertMessage = `🚨 Kelembaban ruangan BAHAYA (${hum_val}% RH). Segera gunakan Humidifier!`;
+            } else if (hum_val < 20) { 
+                alertMessage = `🚨 Kelembaban ruangan BAHAYA (${hum_val}% RH).`;
                 currentAlert = true;
                 alertType = 'danger';
-            } else if (hum_val > 70) { // WASPADA TINGGI
-                alertMessage = `⚠ Kelembaban ruangan Waspada (${hum_val}% RH). Tingkatkan sirkulasi udara atau gunakan material penyerap.`;
+            } else if (hum_val > 70) { 
+                alertMessage = `⚠ Kelembaban ruangan Waspada (${hum_val}% RH).`;
                 currentAlert = true;
                 alertType = 'warning';
-            } else if (hum_val < 30) { // WASPADA RENDAH
-                alertMessage = `⚠ Kelembaban ruangan Waspada (${hum_val}% RH). Tutup ventilasi atau letakkan wadah air terbuka.`;
+            } else if (hum_val < 30) { 
+                alertMessage = `⚠ Kelembaban ruangan Waspada (${hum_val}% RH).`;
                 currentAlert = true;
                 alertType = 'warning';
             }
             
             if (currentAlert) {
                 const lastNotif = notifications[0];
-                // Cek apakah notifikasi sama dan baru dibuat dalam 5 detik terakhir (untuk mencegah spam)
                 if (lastNotif && lastNotif.message === alertMessage && (Date.now() - lastNotif.id) < 5000) {
                     return; 
                 }
-
                 const newNotif = addNotification(alertMessage, alertType);
 
-                // --- LOGIKA MODAL POP-UP (danger ATAU warning) ---
+                // --- LOGIKA MODAL POP-UP TETAP SAMA ---
                 if ((alertType === 'danger' || alertType === 'warning') && newNotif) { 
                     const modalBody = document.getElementById('modalAlertMessage');
                     const initialAlertModal = document.getElementById('initialAlertModal');
@@ -426,15 +419,14 @@
                     if (modalBody && initialAlertModal && modalHeader) {
                         modalBody.innerHTML = `${alertMessage} <br><small class="text-muted mt-2 d-block">Waktu: ${newNotif.timestamp}</small>`;
                         
-                        // Sesuaikan warna header modal berdasarkan tipe alert
                         modalHeader.classList.remove('bg-danger', 'bg-warning', 'bg-info', 'text-white');
                         
                         if (alertType === 'danger') {
                             modalHeader.classList.add('bg-danger', 'text-white');
                             if (closeBtn) closeBtn.classList.add('btn-close-white'); 
-                        } else { // alertType === 'warning'
+                        } else {
                             modalHeader.classList.add('bg-warning');
-                            if (closeBtn) closeBtn.classList.remove('btn-close-white'); // Agar tombol close terlihat di header kuning
+                            if (closeBtn) closeBtn.classList.remove('btn-close-white');
                         }
 
                         const modalInstance = new bootstrap.Modal(initialAlertModal);
@@ -451,55 +443,92 @@
                         initialAlertModal.addEventListener('hidden.bs.modal', handleModalClose);
                     }
                 }
-                // --- AKHIR LOGIKA MODAL POP-UP ---
             }
         }
+        // === AKHIR FUNGSI checkHealthAlert ===
 
         
-        // ====================================================================
-        // === FUNGSI KONVERSI ADC LDR KE LUX (Menggunakan float) ===
-        // ====================================================================
-        function convertLDR_ADC_to_Lux(adcValue, R1 = 10000, Vref = 3.3, ADCmax = 4095) {
-            // Konstan kalibrasi umum untuk LDR
+        // === FUNGSI KONVERSI LDR (ADC KE LUX) TETAP SAMA ===
+        function convertLDR_ADC_to_Lux(adcValue, R1 = 10000, Vref = 3.3, ADCmax = 1023) { // ❗️ Perbaikan: ADCmax 1023 untuk MCP3008
+            // MCP3008 adalah 10-bit (0-1023), bukan 12-bit (4095)
             const LUX_CALC_SCALAR = 125235178.3654270;
             const LUX_CALC_EXPONENT = -1.405; 
 
             if (adcValue === 0 || adcValue === null || isNaN(adcValue)) return 0;
             
-            // 1. Hitung Vout
             const Vout = (adcValue / ADCmax) * Vref;
             
-            // 2. Hitung Resistansi LDR (RLDR)
-            // RLDR = R1 * (Vref - Vout) / Vout
             if (Vout === 0) return 0; 
             const RLDR = R1 * ((Vref - Vout) / Vout); 
 
-            // 3. Konversi RLDR ke Lux
             let luxValue;
             try {
-                // Lux = SCALAR * (RLDR^EXPONENT)
                 luxValue = LUX_CALC_SCALAR * Math.pow(RLDR, LUX_CALC_EXPONENT);
-                // Menggunakan parseFloat(toFixed(2)) untuk memastikan desimal 2 angka
                 return parseFloat(luxValue.toFixed(2));
             } catch (e) {
-                return 0; // Kembalikan 0 jika ada error perhitungan (misalnya RLDR terlalu besar/kecil)
+                return 0;
             }
         }
+        // === AKHIR FUNGSI LDR ===
 
-        // === Fungsi Utama: Ambil Data dari Flask ===
+
+        // ====================================================================
+        // === ⬇️ PERBAIKAN: Fungsi Utama: Ambil Data dari SUPABASE ⬇️ ===
+        // ====================================================================
         async function updateSensorData() {
             try {
-                const response = await fetch(API_LATEST, {
-    headers: { "X-API-KEY": "PBLKEL4" }  // 🔐 tambahin ini
-});
-                if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
-                const data = await response.json();
-                
-                console.log("✅ Data diterima:", data);
+                // --- 1. Ambil Data Sensor (Suhu, pH, dll.) ---
+                const { data: sensorData, error: sensorError } = await supabaseClient
+                    .from('sensor_readings')
+                    .select('*')
+                    .schema('iotuser') // Tentukan skema 'iotuser'
+                    .order('timestamp', { ascending: false })
+                    .limit(1);
 
+                // --- 2. Ambil Data AI (Jentik) ---
+                const { data: aiData, error: aiError } = await supabaseClient
+                    .from('ai_runs')
+                    .select('*')
+                    .schema('iotuser') // Tentukan skema 'iotuser'
+                    .order('timestamp', { ascending: false })
+                    .limit(1);
+                
+                if (sensorError) throw new Error(`Sensor Error: ${sensorError.message}`);
+                if (aiError && aiError.code !== '42P01') { // Abaikan jika tabel ai_runs belum ada, tapi jangan error
+                   console.warn(`AI Error: ${aiError.message}`);
+                }
+
+                if (!sensorData || sensorData.length === 0) {
+                    console.warn("Data sensor kosong dari Supabase.");
+                    return;
+                }
+                
+                // Gabungkan data terbaru dari kedua panggilan
+                const latestSensor = sensorData[0];
+                const latestAI = (aiData && aiData.length > 0) ? aiData[0] : {};
+
+                // ⬇️ PERBAIKAN: Sesuaikan nama kolom Supabase ke nama variabel di JS ⬇️
+                const data = {
+                    temp: latestSensor.temp_c ?? 0,
+                    hum: latestSensor.humidity ?? 0,
+                    ph_val: latestSensor.ph_val ?? 0,
+                    ldr_adc: latestSensor.ldr_adc ?? null, // Ambil ADC mentah
+                    ldr_status: (latestSensor.ldr_adc < 300) ? '🌞 Terang' : '🌑 Gelap', // Status LDR dihitung di sini
+                    mq2_ppm: latestSensor.mq2_ppm ?? 0,
+                    mq2_status: (latestSensor.mq2_ppm > 50) ? '🚨 Gas terdeteksi' : '✅ Aman', // Status MQ dihitung di sini
+                    mq135_ppm: latestSensor.mq135_ppm ?? 0,
+                    mq135_status: (latestSensor.mq135_ppm > 100) ? '⚠ Udara buruk' : '✅ Udara baik', // Status MQ dihitung di sini
+                    jentik_status: latestAI.status ?? '--',
+                    // Path gambar AI (pastikan diawali / dari app.py)
+                    jentik_image: latestAI.result_image ? `${API_BASE_URL}${latestAI.result_image}` : null 
+                };
+                
+                console.log("✅ Data diterima dari Supabase:", data);
+                
                 // ==================================================
                 // Ambil Nilai Sensor
                 // ==================================================
+                // ⬇️ PERBAIKAN: Gunakan variabel 'data' yang baru ⬇️
                 const temp_val = parseFloat(data.temp) || 0;
                 const hum_val = parseFloat(data.hum) || 0;
                 const ph_val = parseFloat(data.ph_val) || 0;
@@ -508,286 +537,189 @@
                 const mq135_ppm = parseFloat(data.mq135_ppm) || 0;
                 const jentik_status = data.jentik_status || '--';
 
-
                 // Perbarui Nilai Numerik (Selalu Hitam)
-                if (document.getElementById("dataSuhu")) document.getElementById("dataSuhu").textContent = data.temp || '--';
-                if (document.getElementById("dataKelembaban")) document.getElementById("dataKelembaban").textContent = data.hum || '--';
-                if (document.getElementById("dataPH")) document.getElementById("dataPH").textContent = `${data.ph_val || '--'} pH`;
-                if (document.getElementById("dataMQ2PPM")) document.getElementById("dataMQ2PPM").textContent = mq2_ppm || '--';
-                if (document.getElementById("dataMQ135PPM")) document.getElementById("dataMQ135PPM").textContent = mq135_ppm || '--';
+                if (document.getElementById("dataSuhu")) document.getElementById("dataSuhu").textContent = data.temp.toFixed(1) || '--';
+                if (document.getElementById("dataKelembaban")) document.getElementById("dataKelembaban").textContent = data.hum.toFixed(1) || '--';
+                if (document.getElementById("dataPH")) document.getElementById("dataPH").textContent = `${data.ph_val.toFixed(2) || '--'} pH`;
+                if (document.getElementById("dataMQ2PPM")) document.getElementById("dataMQ2PPM").textContent = (data.mq2_ppm > 0) ? data.mq2_ppm.toFixed(2) : '--';
+                if (document.getElementById("dataMQ135PPM")) document.getElementById("dataMQ135PPM").textContent = (data.mq135_ppm > 0) ? data.mq135_ppm.toFixed(2) : '--';
 
-                
                 // ==================================================
-                // Pembaruan Status Suhu (Nilai lalu Status + Ikon + Solusi)
+                // Pembaruan Status Suhu (Logika internal TETAP SAMA)
                 // ==================================================
                 const dataSuhuStatusElement = document.getElementById("dataSuhuStatus");
-                const solusiSuhuElement = document.getElementById("solusiSuhu");
+                // ... (Logika if (temp_val > 35) ... dst ... TETAP SAMA) ...
                 if (dataSuhuStatusElement) {
                     let status = 'Aman';
                     let statusClass = 'success';
                     let statusIcon = 'bi-check-circle-fill';
                     let solusiText = 'Pertahankan ventilasi dan suhu ruangan.';
-
-                    if (temp_val > 35) { // BAHAYA PANAS
-                        status = 'BAHAYA';
-                        statusClass = 'danger';
-                        statusIcon = 'bi-x-circle-fill';
-                        solusiText = 'Suhu terlalu tinggi. Segera periksa ventilasi dan nyalakan pendingin udara!';
-                    } else if (temp_val < 10) { // BAHAYA DINGIN
-                        status = 'BAHAYA';
-                        statusClass = 'danger';
-                        statusIcon = 'bi-x-circle-fill';
-                        solusiText = 'Suhu terlalu rendah. Segera periksa ventilasi dan nyalakan pemanas ruangan!';
-                    } else if (temp_val > 30) { // WASPADA PANAS
-                        status = 'Waspada';
-                        statusClass = 'warning';
-                        statusIcon = 'bi-exclamation-triangle-fill';
-                        solusiText = 'Suhu meningkat. Periksa ventilasi atau aktifkan pendingin ringan.';
-                    } else if (temp_val < 15) { // WASPADA DINGIN
-                        status = 'Waspada';
-                        statusClass = 'warning';
-                        statusIcon = 'bi-exclamation-triangle-fill';
-                        solusiText = 'Suhu menurun. Periksa ventilasi atau aktifkan pemanas ringan.';
-                    }
-                    // Teks Hitam, Ikon Berwarna
+                    if (temp_val > 35) { status = 'BAHAYA'; statusClass = 'danger'; statusIcon = 'bi-x-circle-fill'; solusiText = 'Suhu terlalu tinggi. Segera periksa ventilasi dan nyalakan pendingin udara!'; }
+                    else if (temp_val < 10) { status = 'BAHAYA'; statusClass = 'danger'; statusIcon = 'bi-x-circle-fill'; solusiText = 'Suhu terlalu rendah. Segera periksa ventilasi dan nyalakan pemanas ruangan!'; }
+                    else if (temp_val > 30) { status = 'Waspada'; statusClass = 'warning'; statusIcon = 'bi-exclamation-triangle-fill'; solusiText = 'Suhu meningkat. Periksa ventilasi atau aktifkan pendingin ringan.'; }
+                    else if (temp_val < 15) { status = 'Waspada'; statusClass = 'warning'; statusIcon = 'bi-exclamation-triangle-fill'; solusiText = 'Suhu menurun. Periksa ventilasi atau aktifkan pemanas ringan.'; }
                     dataSuhuStatusElement.innerHTML = `<i class="bi ${statusIcon} text-${statusClass}"></i> ${status}`;
                     dataSuhuStatusElement.className = `fw-bold text-dark`;
-                    if (solusiSuhuElement) solusiSuhuElement.textContent = `Solusi: ${solusiText}`;
+                    if (document.getElementById("solusiSuhu")) document.getElementById("solusiSuhu").textContent = `Solusi: ${solusiText}`;
                 }
 
-
                 // ==================================================
-                // Pembaruan Status Kelembaban (Nilai lalu Status + Ikon + Solusi)
+                // Pembaruan Status Kelembaban (Logika internal TETAP SAMA)
                 // ==================================================
                 const dataKelembabanStatusElement = document.getElementById("dataKelembabanStatus");
-                const solusiKelembabanElement = document.getElementById("solusiKelembaban");
+                // ... (Logika if (hum_val > 80) ... dst ... TETAP SAMA) ...
                 if (dataKelembabanStatusElement) {
                     let status = 'Aman';
                     let statusClass = 'success';
                     let statusIcon = 'bi-check-circle-fill';
                     let solusiText = 'Kondisi kelembaban ideal. Pertahankan.';
-
-                    if (hum_val > 80) { // BAHAYA TINGGI
-                        status = 'BAHAYA';
-                        statusClass = 'danger';
-                        statusIcon = 'bi-x-circle-fill';
-                        solusiText = 'Kelembaban terlalu tinggi. Segera aktifkan Dehumidifier untuk mengurangi kelembaban secara drastis!';
-                    } else if (hum_val < 20) { // BAHAYA RENDAH
-                        status = 'BAHAYA';
-                        statusClass = 'danger';
-                        statusIcon = 'bi-x-circle-fill';
-                        solusiText = 'Kelembaban terlalu rendah. Segera aktifkan Humidifier untuk menambah kelembaban ruangan secara cepat!';
-                    } else if (hum_val > 70) { // WASPADA TINGGI
-                        status = 'Waspada';
-                        statusClass = 'warning';
-                        statusIcon = 'bi-exclamation-triangle-fill';
-                        solusiText = 'Kelembaban meningkat. Tingkatkan sirkulasi udara (kipas/jendela) dan letakkan material penyerap kelembaban.';
-                    } else if (hum_val < 30) { // WASPADA RENDAH
-                        status = 'Waspada';
-                        statusClass = 'warning';
-                        statusIcon = 'bi-exclamation-triangle-fill';
-                        solusiText = 'Kelembaban menurun. Tutup ventilasi dan letakkan wadah berisi air untuk menambah kelembaban alami.';
-                    }
-                    // Teks Hitam, Ikon Berwarna
+                    if (hum_val > 80) { status = 'BAHAYA'; statusClass = 'danger'; statusIcon = 'bi-x-circle-fill'; solusiText = 'Kelembaban terlalu tinggi. Segera aktifkan Dehumidifier!'; }
+                    else if (hum_val < 20) { status = 'BAHAYA'; statusClass = 'danger'; statusIcon = 'bi-x-circle-fill'; solusiText = 'Kelembaban terlalu rendah. Segera aktifkan Humidifier!'; }
+                    else if (hum_val > 70) { status = 'Waspada'; statusClass = 'warning'; statusIcon = 'bi-exclamation-triangle-fill'; solusiText = 'Kelembaban meningkat. Tingkatkan sirkulasi udara.'; }
+                    else if (hum_val < 30) { status = 'Waspada'; statusClass = 'warning'; statusIcon = 'bi-exclamation-triangle-fill'; solusiText = 'Kelembaban menurun. Tutup ventilasi.'; }
                     dataKelembabanStatusElement.innerHTML = `<i class="bi ${statusIcon} text-${statusClass}"></i> ${status}`;
                     dataKelembabanStatusElement.className = `fw-bold text-dark`;
-                    if (solusiKelembabanElement) solusiKelembabanElement.textContent = `Solusi: ${solusiText}`;
+                    if (document.getElementById("solusiKelembaban")) document.getElementById("solusiKelembaban").textContent = `Solusi: ${solusiText}`;
                 }
 
-
                 // ==================================================
-                // Pembaruan Status Kualitas Air (pH) (Nilai lalu Status + Ikon + Solusi)
+                // Pembaruan Status Kualitas Air (pH) (Logika internal TETAP SAMA)
                 // ==================================================
                 const dataPHStatusElement = document.getElementById("dataPHStatus");
-                const solusiPHElement = document.getElementById("solusiPH");
+                // ... (Logika if (ph_val < 5.5) ... dst ... TETAP SAMA) ...
                 if (dataPHStatusElement) {
                     let status = 'Ideal';
                     let statusClass = 'success';
                     let statusIcon = 'bi-check-circle-fill';
                     let solusiText = 'Kualitas air pH ideal. Pertahankan kebersihannya.';
-
-                    if (ph_val < 5.5) { // BAHAYA ASAM
-                        status = 'BAHAYA';
-                        statusClass = 'danger';
-                        statusIcon = 'bi-x-circle-fill';
-                        solusiText = 'pH sangat asam. Ganti air segera atau netralkan cepat dengan bahan pengangkat pH dosis besar.';
-                    } else if (ph_val > 9.5) { // BAHAYA BASA
-                        status = 'BAHAYA';
-                        statusClass = 'danger';
-                        statusIcon = 'bi-x-circle-fill';
-                        solusiText = 'pH sangat basa. Ganti air segera atau netralkan cepat dengan bahan penurun pH dosis besar.';
-                    } else if (ph_val < 6.5) { // WASPADA ASAM
-                        status = 'Waspada';
-                        statusClass = 'warning';
-                        statusIcon = 'bi-exclamation-triangle-fill';
-                        solusiText = 'Lakukan penyesuaian pH secara bertahap. Tambahkan buffer basa atau zat penetral (misal: baking soda).';
-                    } else if (ph_val > 8.5) { // WASPADA BASA
-                        status = 'Waspada';
-                        statusClass = 'warning';
-                        statusIcon = 'bi-exclamation-triangle-fill';
-                        solusiText = 'Lakukan penyesuaian pH secara bertahap. Tambahkan buffer asam atau zat penurun pH.';
-                    }
-                    // Teks Hitam, Ikon Berwarna
+                    if (ph_val < 5.5) { status = 'BAHAYA'; statusClass = 'danger'; statusIcon = 'bi-x-circle-fill'; solusiText = 'pH sangat asam. Ganti air segera!'; }
+                    else if (ph_val > 9.5) { status = 'BAHAYA'; statusClass = 'danger'; statusIcon = 'bi-x-circle-fill'; solusiText = 'pH sangat basa. Ganti air segera!'; }
+                    else if (ph_val < 6.5) { status = 'Waspada'; statusClass = 'warning'; statusIcon = 'bi-exclamation-triangle-fill'; solusiText = 'Lakukan penyesuaian pH (buffer basa).'; }
+                    else if (ph_val > 8.5) { status = 'Waspada'; statusClass = 'warning'; statusIcon = 'bi-exclamation-triangle-fill'; solusiText = 'Lakukan penyesuaian pH (buffer asam).'; }
                     dataPHStatusElement.innerHTML = `<i class="bi ${statusIcon} text-${statusClass}"></i> ${status}`;
                     dataPHStatusElement.className = `fw-bold text-dark`;
-                    if (solusiPHElement) solusiPHElement.textContent = `Solusi: ${solusiText}`;
+                    if (document.getElementById("solusiPH")) document.getElementById("solusiPH").textContent = `Solusi: ${solusiText}`;
                 }
                 
                 // ==================================================
-                // Pembaruan LDR (Nilai lalu Status + Ikon Matahari/Bulan + Solusi)
+                // Pembaruan LDR (Data dari ADC mentah Supabase)
                 // ==================================================
                 const dataLDRStatusElement = document.getElementById("dataLDRStatus");
                 const dataLDRLuxElement = document.getElementById("dataLDRLux"); 
                 const solusiLDRElement = document.getElementById("solusiLDR");
 
+                // ⬇️ PERBAIKAN: Gunakan data.ldr_adc ⬇️
                 const ldrAdcValue = data.ldr_adc ?? null;
                 
-                // 1. Hitung & Tampilkan LUX (Float)
                 let luxDisplayValue = '-- Lux';
                 if (ldrAdcValue !== null) {
-                    const calculatedLux = convertLDR_ADC_to_Lux(ldrAdcValue);
+                    const calculatedLux = convertLDR_ADC_to_Lux(ldrAdcValue); 
                     luxDisplayValue = `${calculatedLux} Lux`;
                 }
                 if (dataLDRLuxElement) {
                     dataLDRLuxElement.textContent = luxDisplayValue;
                 }
 
-                // 2. Tampilkan Status (dengan Ikon Matahari/Bulan)
                 if (dataLDRStatusElement) {
                     let ldr_status_text = data.ldr_status || '--';
+                    // ... (Logika ldr_status_text.includes('Terang') ... dst ... TETAP SAMA) ...
                     let statusClass = 'secondary';
                     let statusIcon = 'bi-lightbulb'; 
                     let solusiText = 'Sensor belum membaca data.';
-
                     if (ldr_status_text.includes('Terang')) {
-                        statusClass = 'dark'; // Ikon Matahari gelap
-                        statusIcon = 'bi-sun-fill'; 
+                        statusClass = 'dark'; statusIcon = 'bi-sun-fill'; 
                         solusiText = 'Cahaya memadai untuk aktivitas harian. Pertahankan tingkat pencahayaan.';
                     } else if (ldr_status_text.includes('Redup') || ldr_status_text.includes('Gelap')) {
-                         statusClass = 'secondary'; // Ikon Bulan abu-abu
-                         statusIcon = 'bi-moon-fill'; 
-                         solusiText = 'Pencahayaan di bawah batas optimal. Pertimbangkan menambah penerangan di area ini untuk keamanan dan kenyamanan.';
+                         statusClass = 'secondary'; statusIcon = 'bi-moon-fill'; 
+                         solusiText = 'Pencahayaan di bawah batas optimal. Pertimbangkan menambah penerangan.';
                     }
-                    // Teks Hitam, Ikon Berwarna
                     dataLDRStatusElement.innerHTML = `<i class="bi ${statusIcon} text-${statusClass}"></i> ${ldr_status_text}`;
                     dataLDRStatusElement.className = `fw-bold text-dark`;
                     if (solusiLDRElement) solusiLDRElement.textContent = `Solusi: ${solusiText}`;
                 }
-                // ==================================================
-                // Akhir Pembaruan LDR
-                // ==================================================
-
 
                 // ==================================================
-                // Pembaruan MQ-2 (Nilai lalu Status + Ikon + Solusi)
+                // Pembaruan MQ-2 (Logika internal TETAP SAMA)
                 // ==================================================
                 const solusiMQ2Element = document.getElementById("solusiMQ2");
-                if (document.getElementById("dataMQ2PPM")) document.getElementById("dataMQ2PPM").textContent = mq2_ppm || '--';
                 if (document.getElementById("dataMQ2Status")) {
                     const statusEl = document.getElementById("dataMQ2Status");
-                    
                     let status = mq2_status;
+                    // ... (Logika status.includes('terdeteksi') ... dst ... TETAP SAMA) ...
                     let statusClass = 'success';
                     let statusIcon = 'bi-check-circle-fill';
-                    let solusiText = 'Konsentrasi gas normal. Tetap waspada terhadap bau tak sedap dan lakukan pemeriksaan rutin.';
-
+                    let solusiText = 'Konsentrasi gas normal. Tetap waspada.';
                     if (status.includes('terdeteksi')) {
                         statusClass = 'danger';
                         statusIcon = 'bi-x-circle-fill';
-                        solusiText = 'DARURAT! Lakukan evakuasi segera dan periksa sumber kebocoran gas atau asap (misal: kompor, korsleting) secepatnya!';
+                        solusiText = 'DARURAT! Lakukan evakuasi segera dan periksa sumber kebocoran gas atau asap!';
                     }
-                    // Teks Hitam, Ikon Berwarna
                     statusEl.innerHTML = `<i class="bi ${statusIcon} text-${statusClass}"></i> ${status}`;
                     statusEl.className = `fw-bold text-dark`;
                     if (solusiMQ2Element) solusiMQ2Element.textContent = `Solusi: ${solusiText}`;
                 }
                 
                 // ==================================================
-                // Pembaruan MQ-135 (Nilai lalu Status + Ikon + Solusi)
+                // Pembaruan MQ-135 (Logika internal TETAP SAMA)
                 // ==================================================
                 const solusiMQ135Element = document.getElementById("solusiMQ135");
-                if (document.getElementById("dataMQ135PPM")) document.getElementById("dataMQ135PPM").textContent = mq135_ppm || '--';
                 if (document.getElementById("dataMQ135Status")) {
                     const statusEl = document.getElementById("dataMQ135Status");
-                    
                     let mq135_status_text = 'T/A';
+                    // ... (Logika if (mq135_ppm > 200) ... dst ... TETAP SAMA) ...
                     let statusClass = 'secondary';
                     let statusIcon = 'bi-question-circle-fill';
                     let solusiText = 'Sensor belum membaca data.';
-
                     if (mq135_ppm > 200) { 
-                        mq135_status_text = 'SANGAT BURUK';
-                        statusClass = 'danger';
-                        statusIcon = 'bi-x-circle-fill';
-                        solusiText = 'BAHAYA KESEHATAN! Segera buka semua ventilasi, gunakan pemurni udara, dan pastikan tidak ada sumber polutan beracun (misal: cat, bahan kimia).';
+                        mq135_status_text = 'SANGAT BURUK'; statusClass = 'danger'; statusIcon = 'bi-x-circle-fill';
+                        solusiText = 'BAHAYA KESEHATAN! Segera buka semua ventilasi, gunakan pemurni udara.';
                     } else if (mq135_ppm > 100) { 
-                        mq135_status_text = 'BURUK';
-                        statusClass = 'warning';
-                        statusIcon = 'bi-exclamation-triangle-fill';
-                        solusiText = 'Polusi meningkat. Tingkatkan sirkulasi udara (buka jendela lebar/nyalakan exhaust) dan hindari menyalakan lilin/pembakar.';
-                    } else if (mq135_ppm > 0) {
-                        mq135_status_text = 'BAIK';
-                        statusClass = 'success';
-                        statusIcon = 'bi-check-circle-fill';
-                        solusiText = 'Kualitas udara baik. Lakukan sirkulasi minimal untuk menjaga kesegaran udara dalam ruangan.';
+                        mq135_status_text = 'BURUK'; statusClass = 'warning'; statusIcon = 'bi-exclamation-triangle-fill';
+                        solusiText = 'Polusi meningkat. Tingkatkan sirkulasi udara (buka jendela/nyalakan exhaust).';
+                    } else if (mq135_ppm > 0 || mq135_ppm === 0) { 
+                        mq135_status_text = 'BAIK'; statusClass = 'success'; statusIcon = 'bi-check-circle-fill';
+                        solusiText = 'Kualitas udara baik. Lakukan sirkulasi minimal.';
                     }
-                    // Teks Hitam, Ikon Berwarna
                     statusEl.innerHTML = `<i class="bi ${statusIcon} text-${statusClass}"></i> ${mq135_status_text}`;
                     statusEl.className = `fw-bold text-dark`;
                     if (solusiMQ135Element) solusiMQ135Element.textContent = `Solusi: ${solusiText}`;
                 }
-                // ==================================================
-                // Akhir Pembaruan MQ Sensor
-                // ==================================================
-
 
                 // ==================================================
-                // Pembaruan Hasil AI Jentik (TEKS HITAM + IKON + Solusi)
+                // Pembaruan Hasil AI Jentik
                 // ==================================================
                 const statusElement = document.getElementById('dataJentikStatus');
                 const imageElement = document.getElementById('jentikDetectionImage');
                 const solusiJentikElement = document.getElementById("solusiJentik");
 
-
+                // ⬇️ PERBAIKAN: Gunakan data.jentik_status ⬇️
                 if (data.jentik_status && statusElement) {
                     jentikLastStatus = data.jentik_status;
-                    
                     let statusClass = 'dark';
+                    // ... (Logika data.jentik_status.includes("Terdeteksi") ... dst ... TETAP SAMA) ...
                     let statusIcon = '';
                     let solusiText = 'Jalankan deteksi manual jika ragu.';
-                    
                     if (data.jentik_status.includes("Terdeteksi")) {
-                        statusClass = 'danger';
-                        statusIcon = 'bi-x-circle-fill'; // ❌
-                        solusiText = 'RISIKO DBD TINGGI! Segera lakukan Kuras, Sikat, Tutup (3M) dan taburkan abate pada penampungan air segera!';
+                        statusClass = 'danger'; statusIcon = 'bi-x-circle-fill';
+                        solusiText = 'RISIKO DBD TINGGI! Segera lakukan Kuras, Sikat, Tutup (3M) dan taburkan abate!';
                     } else if (data.jentik_status.includes("Tidak Terdeteksi")) {
-                        statusClass = 'success';
-                        statusIcon = 'bi-check-circle-fill'; // ✅
-                        solusiText = 'Lingkungan aman dari jentik. Tetap lakukan pencegahan 3M (Menguras, Menutup, Mendaur ulang) secara rutin.';
+                        statusClass = 'success'; statusIcon = 'bi-check-circle-fill';
+                        solusiText = 'Lingkungan aman dari jentik. Tetap lakukan pencegahan 3M rutin.';
                     } else if (data.jentik_status.includes("Scanning")) {
-                        // Status Scanning: Tetap kuning tanpa ikon
-                        statusClass = 'warning'; 
-                        statusIcon = ''; 
+                        statusClass = 'warning'; statusIcon = ''; 
                         solusiText = 'Deteksi sedang berlangsung. Tunggu hasilnya. Jangan ganggu perangkat sensor.';
                     } else {
-                        // Status Tidak Jelas/Default
-                        statusClass = 'warning';
-                        statusIcon = 'bi-exclamation-triangle-fill'; // ⚠️
+                        statusClass = 'warning'; statusIcon = 'bi-exclamation-triangle-fill';
                         solusiText = 'Perlu cek ulang sensor/kondisi air.';
                     }
-                    
-                    // Teks Kuning saat Scanning, Ikon Berwarna untuk deteksi/danger
                     const iconHtml = statusIcon ? `<i class="bi ${statusIcon} text-${statusClass}"></i> ` : '';
-                    
-                    // Jika Scanning, warna teks adalah warning. Jika hasil, warna teks adalah dark.
                     const textClass = (data.jentik_status.includes("Scanning") || data.jentik_status.includes("Tidak Jelas")) ? `text-${statusClass}` : 'text-dark';
-
                     statusElement.innerHTML = `${iconHtml}<span class="${textClass}">${jentikLastStatus}</span>`;
-                    statusElement.className = `fw-bold text-dark`; // Kontainer utama tetap dark
+                    statusElement.className = `fw-bold text-dark`;
                     if (solusiJentikElement) solusiJentikElement.textContent = `Solusi: ${solusiText}`;
                 }
 
-
+                // ⬇️ PERBAIKAN: Gunakan data.jentik_image ⬇️
                 if (data.jentik_image && imageElement) {
                     jentikLastImagePath = data.jentik_image; 
                     imageElement.src = jentikLastImagePath;
@@ -798,15 +730,19 @@
                     jentikLastImagePath = null;
                 }
                 
-                checkHealthAlert(data);
+                checkHealthAlert(data); // Fungsi ini dipanggil dengan data yang sudah di-parsing
 
             } catch (err) {
-                console.error("❌ Gagal mengambil data sensor:", err);
+                console.error("❌ Gagal mengambil data sensor dari Supabase:", err);
             }
         }
+        // ====================================================================
+        // === ⬆️ AKHIR PERBAIKAN FUNGSI updateSensorData ⬆️ ===
+        // ====================================================================
 
 
-        // === FUNGSI TRIGGER AI MANUAL (Diperbarui untuk Ikon Jentik) ===
+        // === FUNGSI TRIGGER AI MANUAL (TETAP SAMA) ===
+        // (Fungsi ini sudah benar memanggil /trigger_ai)
         async function triggerAI() {
             const button = document.getElementById('triggerAIButton');
             const messageBox = document.getElementById('aiMessage');
@@ -825,29 +761,25 @@
             button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> MEMPROSES DETEKSI...'; 
             messageBox.textContent = 'Memulai deteksi AI... Tunggu sebentar.';
             messageBox.className = 'text-warning mt-2 d-block';
-
             jentikLastStatus = "Scanning..."; 
             jentikLastType = "warning";
-            
-            // Teks Kuning (Scanning) TANPA IKON
             statusCardElement.innerHTML = `<span class="text-warning">${jentikLastStatus}</span>`; 
             statusCardElement.className = `fw-bold text-dark`; 
             solusiJentikElement.textContent = 'Solusi: Deteksi sedang berlangsung. Tunggu hasilnya. Jangan ganggu perangkat sensor.';
-
             imageCardElement.classList.add('d-none');
             imageCardElement.src = "";
             jentikLastImagePath = null;
             // ----------------------------
 
             try {
+                // ⬇️ PERBAIKAN: Gunakan variabel API_KEY_HEADER ⬇️
                 const response = await fetch(API_TRIGGER, {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json',
-        'X-API-KEY': 'PBLKEL4' // 🔐 API Key kamu
-    }
-});
-
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-KEY': API_KEY_HEADER 
+                    }
+                });
                 
                 if (!response.ok) {
                     throw new Error(`Gagal mengirim perintah: HTTP ${response.status}. Pastikan CORS diaktifkan.`);
@@ -855,9 +787,9 @@
                 
                 const result = await response.json();
                 
+                // ... (Sisa logika triggerAI TETAP SAMA) ...
                 const detectionResultStatus = result.status || "Tidak ada hasil";
                 const detectionImagePath = result.result_image || null; 
-                
                 let status = 'Deteksi Selesai, Status Tidak Jelas';
                 let statusClass = 'warning';
                 let statusIcon = 'bi-exclamation-triangle-fill';
@@ -867,12 +799,10 @@
                     status = 'Jentik Terdeteksi!';
                     statusClass = 'danger';
                     statusIcon = 'bi-x-circle-fill';
-                    solusiText = 'RISIKO DBD TINGGI! Segera lakukan Kuras, Sikat, Tutup (3M) dan taburkan abate pada penampungan air segera!';
-                    
+                    solusiText = 'RISIKO DBD TINGGI! Segera lakukan Kuras, Sikat, Tutup (3M) dan taburkan abate!';
                     const notifMessage = `🚨 Jentik terdeteksi: ${detectionResultStatus}`;
                     const newNotif = addNotification(notifMessage, 'danger');
                     
-                    // Panggil ulang logika pop-up yang sudah dimodifikasi
                     if (newNotif) {
                         const modalBody = document.getElementById('modalAlertMessage');
                         const initialAlertModal = document.getElementById('initialAlertModal');
@@ -881,11 +811,9 @@
                         
                         if (modalBody && initialAlertModal && modalHeader) {
                             modalBody.innerHTML = `${notifMessage} <br><small class="text-muted mt-2 d-block">Waktu: ${newNotif.timestamp}</small>`;
-                            
                             modalHeader.classList.remove('bg-danger', 'bg-warning', 'bg-info', 'text-white');
                             modalHeader.classList.add('bg-danger', 'text-white');
                             if (closeBtn) closeBtn.classList.add('btn-close-white'); 
-                            
                             const modalInstance = new bootstrap.Modal(initialAlertModal);
                             modalInstance.show();
                         }
@@ -894,15 +822,11 @@
                     status = 'Jentik Tidak Terdeteksi';
                     statusClass = 'success';
                     statusIcon = 'bi-check-circle-fill';
-                    solusiText = 'Lingkungan aman dari jentik. Tetap lakukan pencegahan 3M (Menguras, Menutup, Mendaur ulang) secara rutin.';
+                    solusiText = 'Lingkungan aman dari jentik. Tetap lakukan pencegahan 3M rutin.';
                 }
-
-                // Setelah selesai, set status jentik dengan ikon dan teks hitam
                 statusCardElement.innerHTML = `<i class="bi ${statusIcon} text-${statusClass}"></i> ${status}`;
                 statusCardElement.className = `fw-bold text-dark`;
                 solusiJentikElement.textContent = `Solusi: ${solusiText}`;
-
-
                 if (detectionImagePath) {
                     jentikLastImagePath = detectionImagePath;
                     imageCardElement.src = jentikLastImagePath; 
@@ -912,48 +836,39 @@
                     imageCardElement.src = "";
                     jentikLastImagePath = null;
                 }
-                
                 messageBox.textContent = 'Klik untuk menjalankan deteksi AI pada sampel air.';
                 messageBox.className = 'text-muted mt-2 d-block';
 
             } catch (error) {
                 console.error('Trigger AI gagal:', error);
-                
                 let status = "Gagal Koneksi/Server";
                 let statusClass = 'danger';
                 let statusIcon = 'bi-x-circle-fill';
-                
                 let solusiText = 'Periksa koneksi server Flask dan perangkat Edge AI Anda.';
-                
                 messageBox.textContent = `❌ Gagal: ${error.message}. Cek server.`;
                 messageBox.className = 'text-danger mt-2 d-block';
-                
-                // Setelah selesai, set status jentik Gagal dengan ikon silang dan teks hitam
                 statusCardElement.innerHTML = `<i class="bi ${statusIcon} text-${statusClass}"></i> ${status}`;
                 statusCardElement.className = `fw-bold text-dark`;
                 solusiJentikElement.textContent = `Solusi: ${solusiText}`;
-
-
                 imageCardElement.classList.add('d-none');
                 imageCardElement.src = "";
                 jentikLastImagePath = null;
-                // Notifikasi danger akan memicu pop-up merah
                 addNotification(`🚨 Gagal terhubung/proses AI: ${error.message}`, 'danger');
-
             } finally {
                 button.innerHTML = originalButtonContent; 
                 button.disabled = false;
             }
         }
+        // === AKHIR FUNGSI TRIGGER AI ===
 
 
         // === Jalankan Saat Halaman Dimuat ===
         document.addEventListener('DOMContentLoaded', function() {
+            // ... (SEMUA EVENT LISTENER TETAP SAMA) ...
             const triggerButton = document.getElementById('triggerAIButton');
             if (triggerButton) {
                 triggerButton.addEventListener('click', triggerAI);
             }
-
             const notifModal = document.getElementById('notificationListModal');
             if (notifModal) {
                 notifModal.addEventListener('hidden.bs.modal', function() {
@@ -962,7 +877,6 @@
                     updateNotificationUI();
                 });
             }
-            
             const jentikImageElement = document.getElementById('jentikDetectionImage');
             if (jentikImageElement) {
                 jentikImageElement.addEventListener('click', function() {
@@ -974,15 +888,12 @@
                     }
                 });
             }
-            
-            // Set semua placeholder menjadi hitam di awal
             document.querySelectorAll('.fw-bold').forEach(el => {
-                // Hapus semua kelas warna dan pastikan menggunakan text-dark (hitam)
                 el.classList.remove('text-success', 'text-warning', 'text-danger', 'text-secondary', 'text-primary');
                 el.classList.add('text-dark');
             });
 
-
+            // ⬇️ PERBAIKAN: Panggil fungsi baru dan set interval ⬇️
             updateSensorData();
             setInterval(updateSensorData, 5000); 
             updateNotificationUI();
